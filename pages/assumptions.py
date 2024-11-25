@@ -10,21 +10,11 @@ if 'assumptions' not in st.session_state:
     st.session_state.assumptions = {
         'Business A': {
             'Onshore': 100000,
-            'Offshore': 40000,
-            'Implementation': {
-                'Rebadge': 10000,
-                'House Resources': 120000,
-                'New Hire': 100000
-            }
+            'Offshore': 40000
         },
         'Business B': {
             'Onshore': 100000,
-            'Offshore': 40000,
-            'Implementation': {
-                'Rebadge': 10000,
-                'House Resources': 120000,
-                'New Hire': 100000
-            }
+            'Offshore': 40000
         }
     }
 
@@ -127,84 +117,50 @@ with tab1:
     )
 
 with tab2:
-    st.header("Implementation Cost Assumptions")
+    st.header("Function Management")
     
-    with st.form("implementation_costs_form"):
-        # Resource Implementation Costs
-        st.subheader("Resource Implementation Costs")
-        st.markdown("These costs are applied per resource for each implementation type.")
+    # Initialize functions in session state if not exists
+    if 'FUNCTIONS' not in st.session_state:
+        st.session_state.FUNCTIONS = ["Development", "Testing", "Support"]
+    
+    # Display current functions
+    st.subheader("Current Functions")
+    
+    # Create a form for editing existing functions
+    with st.form("edit_functions"):
+        edited_functions = []
+        functions_to_remove = []
         
-        for business in ["Business A", "Business B"]:
-            st.subheader(business)
-            
-            # Resource implementation costs
-            col1, col2, col3 = st.columns(3)
-            
+        for i, function in enumerate(st.session_state.FUNCTIONS):
+            col1, col2 = st.columns([3, 1])
             with col1:
-                rebadge_cost = st.number_input(
-                    "Rebadge Cost",
-                    min_value=0,
-                    value=st.session_state.assumptions[business]['Implementation']['Rebadge'],
-                    step=1000,
-                    help="One-time cost per rebadged resource",
-                    key=f"rebadge_{business}"
+                new_name = st.text_input(
+                    f"Function {i+1}",
+                    value=function,
+                    key=f"function_{i}"
                 )
-            
+                edited_functions.append(new_name)
             with col2:
-                house_cost = st.number_input(
-                    "House Resource Cost",
-                    min_value=0,
-                    value=st.session_state.assumptions[business]['Implementation']['House Resources'],
-                    step=1000,
-                    help="Annual cost per house resource",
-                    key=f"house_{business}"
-                )
-            
-            with col3:
-                new_hire_cost = st.number_input(
-                    "New Hire Cost",
-                    min_value=0,
-                    value=st.session_state.assumptions[business]['Implementation']['New Hire'],
-                    step=1000,
-                    help="Cost per new hire including recruitment and onboarding",
-                    key=f"new_hire_{business}"
-                )
-            
-            st.divider()
+                if st.checkbox("Remove", key=f"remove_{i}"):
+                    functions_to_remove.append(i)
         
-        if st.form_submit_button("Update Implementation Costs"):
-            # Update session state for both businesses
-            for business in ["Business A", "Business B"]:
-                st.session_state.assumptions[business]['Implementation'].update({
-                    'Rebadge': st.session_state[f"rebadge_{business}"],
-                    'House Resources': st.session_state[f"house_{business}"],
-                    'New Hire': st.session_state[f"new_hire_{business}"]
-                })
+        # Add new function field
+        st.subheader("Add New Function")
+        new_function = st.text_input("New Function Name", key="new_function")
+        
+        if st.form_submit_button("Update Functions"):
+            # Remove marked functions
+            for index in sorted(functions_to_remove, reverse=True):
+                edited_functions.pop(index)
             
-            st.success("Implementation costs updated successfully!")
+            # Add new function if provided
+            if new_function and new_function not in edited_functions:
+                edited_functions.append(new_function)
+            
+            # Update session state
+            st.session_state.FUNCTIONS = edited_functions
+            st.success("Functions updated successfully!")
             st.rerun()
-    
-    # Display current implementation costs in a table
-    st.subheader("Current Implementation Cost Assumptions")
-    
-    # Create DataFrame for display
-    data = []
-    for business in ['Business A', 'Business B']:
-        for cost_type, value in st.session_state.assumptions[business]['Implementation'].items():
-            data.append({
-                'Business': business,
-                'Implementation Type': cost_type,
-                'Cost': f"${value:,}"
-            })
-    
-    df = pd.DataFrame(data)
-    st.dataframe(
-        df.style.set_properties(**{
-            'text-align': 'left',
-            'font-size': '16px'
-        }),
-        use_container_width=True
-    )
 
 with tab3:
     st.info("Additional assumptions can be added here in future versions") 
