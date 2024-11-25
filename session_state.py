@@ -9,6 +9,10 @@ def init_session_state():
     if 'implementation_costs' not in st.session_state:
         st.session_state.implementation_costs = {}
 
+    # Add a key to track edited values
+    if 'edited_values' not in st.session_state:
+        st.session_state.edited_values = {}
+
     # Initialize records if not present
     if 'records' not in st.session_state:
         st.session_state.records = [

@@ -31,12 +31,263 @@ def delete_record(record):
     st.session_state.records.remove(record)
     st.rerun()
 
+def add_sample_data():
+    """Add sample records and changes for demonstration"""
+    # Sample records
+    st.session_state.records = [
+        # Business A Resources
+        {
+            'id': 1,
+            'business': 'Business A',
+            'category': 'Resource',
+            'functions': ['Development'],
+            'function_descriptions': {
+                'Development': 'Core development team for business applications'
+            },
+            'tech_name': None,
+            'location': 'Onshore',
+            'count': 5,
+            'unit_cost': 100000,
+            'total_cost': 500000,
+            'comments': 'Primary development team',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 2,
+            'business': 'Business A',
+            'category': 'Resource',
+            'functions': ['Testing'],
+            'function_descriptions': {
+                'Testing': 'QA and testing team for all applications'
+            },
+            'tech_name': None,
+            'location': 'Offshore',
+            'count': 8,
+            'unit_cost': 40000,
+            'total_cost': 320000,
+            'comments': 'Offshore testing team',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 3,
+            'business': 'Business A',
+            'category': 'Resource',
+            'functions': ['Support'],
+            'function_descriptions': {
+                'Support': '24/7 application support team'
+            },
+            'tech_name': None,
+            'location': 'Offshore',
+            'count': 10,
+            'unit_cost': 40000,
+            'total_cost': 400000,
+            'comments': 'Application support team',
+            'timestamp': datetime.now().isoformat()
+        },
+        # Business A Technology
+        {
+            'id': 4,
+            'business': 'Business A',
+            'category': 'Technology',
+            'functions': ['Development', 'Testing'],
+            'function_descriptions': {
+                'Development': 'Development environment and tools',
+                'Testing': 'Testing and QA tools'
+            },
+            'tech_name': 'Development Suite',
+            'location': None,
+            'count': None,
+            'unit_cost': None,
+            'total_cost': 750000,
+            'comments': 'Development and testing tools suite',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 5,
+            'business': 'Business A',
+            'category': 'Technology',
+            'functions': ['Support'],
+            'function_descriptions': {
+                'Support': 'Support ticketing and monitoring system'
+            },
+            'tech_name': 'Support System',
+            'location': None,
+            'count': None,
+            'unit_cost': None,
+            'total_cost': 250000,
+            'comments': 'Support and monitoring tools',
+            'timestamp': datetime.now().isoformat()
+        },
+        # Business B Resources
+        {
+            'id': 6,
+            'business': 'Business B',
+            'category': 'Resource',
+            'functions': ['Development'],
+            'function_descriptions': {
+                'Development': 'Core development team for business applications'
+            },
+            'tech_name': None,
+            'location': 'Onshore',
+            'count': 4,
+            'unit_cost': 90000,
+            'total_cost': 360000,
+            'comments': 'Primary development team',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 7,
+            'business': 'Business B',
+            'category': 'Resource',
+            'functions': ['Testing'],
+            'function_descriptions': {
+                'Testing': 'QA and testing team'
+            },
+            'tech_name': None,
+            'location': 'Offshore',
+            'count': 6,
+            'unit_cost': 35000,
+            'total_cost': 210000,
+            'comments': 'Testing team',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 8,
+            'business': 'Business B',
+            'category': 'Resource',
+            'functions': ['Support'],
+            'function_descriptions': {
+                'Support': 'Application support team'
+            },
+            'tech_name': None,
+            'location': 'Offshore',
+            'count': 8,
+            'unit_cost': 35000,
+            'total_cost': 280000,
+            'comments': 'Support team',
+            'timestamp': datetime.now().isoformat()
+        },
+        # Business B Technology
+        {
+            'id': 9,
+            'business': 'Business B',
+            'category': 'Technology',
+            'functions': ['Development', 'Testing'],
+            'function_descriptions': {
+                'Development': 'Development tools and platforms',
+                'Testing': 'Testing automation suite'
+            },
+            'tech_name': 'Development Platform',
+            'location': None,
+            'count': None,
+            'unit_cost': None,
+            'total_cost': 500000,
+            'comments': 'Development and testing platform',
+            'timestamp': datetime.now().isoformat()
+        },
+        {
+            'id': 10,
+            'business': 'Business B',
+            'category': 'Technology',
+            'functions': ['Support'],
+            'function_descriptions': {
+                'Support': 'Support and monitoring tools'
+            },
+            'tech_name': 'Support Tools',
+            'location': None,
+            'count': None,
+            'unit_cost': None,
+            'total_cost': 200000,
+            'comments': 'Support infrastructure',
+            'timestamp': datetime.now().isoformat()
+        }
+    ]
+
+    # Sample changes
+    st.session_state.changes = [
+        {
+            'record_id': 1,
+            'timestamp': datetime.now().isoformat(),
+            'type': 'count_change',
+            'from': 5,
+            'to': 3,
+            'implementation_year': 2,
+            'description': 'Reduce development team through automation'
+        },
+        {
+            'record_id': 4,
+            'timestamp': datetime.now().isoformat(),
+            'type': 'cost_change',
+            'from': 750000,
+            'to': 500000,
+            'implementation_year': 3,
+            'description': 'Move to cloud-based development tools'
+        },
+        {
+            'record_id': 7,
+            'timestamp': datetime.now().isoformat(),
+            'type': 'location_change',
+            'from': 'Offshore',
+            'to': 'Onshore',
+            'implementation_year': 2,
+            'description': 'Relocate testing team onshore'
+        }
+    ]
+
+    # Add sample implementation costs
+    for change in st.session_state.changes:
+        record = next(r for r in st.session_state.records if r['id'] == change['record_id'])
+        change_key = f"{record['business']}_{change['record_id']}_{change['timestamp']}"
+        
+        if change_key not in st.session_state.implementation_costs:
+            st.session_state.implementation_costs[change_key] = {
+                'resources': {}
+            }
+            
+            if record['category'] == 'Resource':
+                st.session_state.implementation_costs[change_key]['resources'] = {
+                    'Rebadge': [2, 1, 0, 0, 0],
+                    'House Resources': [1, 2, 1, 0, 0],
+                    'New Hire': [1, 1, 1, 0, 0]
+                }
+            else:  # Technology
+                st.session_state.implementation_costs[change_key]['resources'] = {
+                    'Internal Build Costs': [100000, 50000, 25000, 10000, 0]
+                }
+
+    # Add sample assumptions
+    st.session_state.assumptions = {
+        'Business A': {
+            'Onshore': 100000,
+            'Offshore': 40000,
+            'Implementation': {
+                'Rebadge': 15000,
+                'House Resources': 20000,
+                'New Hire': 25000
+            }
+        },
+        'Business B': {
+            'Onshore': 90000,
+            'Offshore': 35000,
+            'Implementation': {
+                'Rebadge': 12000,
+                'House Resources': 18000,
+                'New Hire': 22000
+            }
+        }
+    }
+
+    st.success("Sample data loaded successfully!")
+    st.rerun()
+
 # Main content
 st.title("Cost Savings Analysis")
 
 # Move Save/Load to sidebar
 st.sidebar.title("Data Management")
-col1, col2 = st.sidebar.columns(2)
+
+# Create three columns in the sidebar for the buttons
+col1, col2, col3 = st.sidebar.columns(3)
 
 with col1:
     if st.button("Save Analysis"):
@@ -58,7 +309,7 @@ with col1:
         st.sidebar.success("Analysis ready for download!")
 
 with col2:
-    uploaded_file = st.sidebar.file_uploader("Load Analysis", type=['xlsx'])
+    uploaded_file = st.file_uploader("Load Analysis", type=['xlsx'])
     if uploaded_file is not None:
         try:
             records_df = pd.read_excel(uploaded_file, sheet_name='Records')
@@ -82,6 +333,10 @@ with col2:
         except Exception as e:
             st.sidebar.error(f"Error loading file: {str(e)}")
 
+with col3:
+    if st.button("Load Sample Data", help="Click to populate with sample data for demonstration"):
+        add_sample_data()
+
 # Create business level tabs
 business_tabs = st.tabs(BUSINESS_TYPES)
 
@@ -93,9 +348,9 @@ for i, business_tab in enumerate(business_tabs):
         col1, col2, col3 = st.columns([1, 1, 2])
         
         # Calculate metrics for the selected business
-        resource_count = sum(1 for r in st.session_state.records 
-                           if r['business'] == selected_business 
-                           and r['category'] == 'Resource')
+        resource_count = sum(r['count'] for r in st.session_state.records 
+                            if r['business'] == selected_business 
+                            and r['category'] == 'Resource')
         
         tech_count = sum(1 for r in st.session_state.records 
                         if r['business'] == selected_business 

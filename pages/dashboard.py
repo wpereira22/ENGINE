@@ -41,15 +41,30 @@ def create_change_message(change, record):
 def calculate_future_cost(record, changes, year=5):
     """Calculate future cost for a record based on changes for a specific year"""
     future_cost = record['total_cost']
-    record_changes = [c for c in changes if c['record_id'] == record['id']]
     
+    # Get all changes for this record, sorted by implementation year
+    record_changes = sorted(
+        [c for c in changes if c['record_id'] == record['id']],
+        key=lambda x: x['implementation_year']
+    )
+    
+    # Apply changes sequentially up to the specified year
     for change in record_changes:
         if change['implementation_year'] <= year:
             if change['type'] == 'count_change':
-                future_cost = (change['to'] * record['unit_cost'])
+                # Update cost based on new count
+                future_cost = change['to'] * record['unit_cost']
             elif change['type'] == 'location_change':
+                # Update cost based on new location's unit cost
                 new_unit_cost = 100000 if change['to'] == 'Onshore' else 40000
-                future_cost = (record['count'] * new_unit_cost)
+                current_count = record['count']
+                # Check if there was a previous count change
+                count_changes = [c for c in record_changes 
+                               if c['type'] == 'count_change' 
+                               and c['implementation_year'] <= change['implementation_year']]
+                if count_changes:
+                    current_count = count_changes[-1]['to']
+                future_cost = current_count * new_unit_cost
             elif change['type'] == 'cost_change':
                 future_cost = change['to']
     
@@ -57,8 +72,15 @@ def calculate_future_cost(record, changes, year=5):
 
 def create_summary_metrics(records, changes):
     """Calculate summary metrics for all businesses"""
+    # Calculate current total by summing all record costs
     total_current = sum(r['total_cost'] for r in records)
-    total_future = sum(calculate_future_cost(r, changes) for r in records)
+    
+    # Calculate future total by applying all changes
+    total_future = 0
+    for record in records:
+        future_cost = calculate_future_cost(record, changes)
+        total_future += future_cost
+    
     total_savings = total_current - total_future
     return total_current, total_future, total_savings
 
@@ -116,13 +138,18 @@ if 'records' in st.session_state and 'changes' in st.session_state:
             )
             with st.expander("View Details", expanded=False):
                 # Resource costs by function
-                st.write("**Resource Costs:**")
+                st.write("**Resource Costs by Function:**")
                 for function in FUNCTIONS:
                     resource_cost = sum(r['total_cost'] for r in records 
-                                     if r['category'] == 'Resource' 
-                                     and function in r['functions'])
+                                      if r['category'] == 'Resource' 
+                                      and function in r['functions'])
                     if resource_cost > 0:
                         st.write(f"{function}: ${resource_cost:,.2f}")
+                        # Show resource count
+                        resource_count = sum(r['count'] for r in records 
+                                           if r['category'] == 'Resource' 
+                                           and function in r['functions'])
+                        st.caption(f"Resource Count: {resource_count}")
                 
                 st.divider()
                 
@@ -397,7 +424,9 @@ if 'records' in st.session_state and 'changes' in st.session_state:
                             )
                             st.caption("5-year savings impact")
                             
-                            if st.button("Remove Change", key=f"del_change_{change_info['record']['id']}"):
+                            # Updated key to include timestamp
+                            if st.button("Remove Change", 
+                                       key=f"del_change_resource_{change_info['record']['id']}_{change_info['timestamp']}"):
                                 change_to_remove = next(
                                     (c for c in st.session_state.changes 
                                      if c['record_id'] == change_info['record']['id'] 
@@ -429,7 +458,9 @@ if 'records' in st.session_state and 'changes' in st.session_state:
                             )
                             st.caption("5-year savings impact")
                             
-                            if st.button("Remove Change", key=f"del_change_{change_info['record']['id']}_tech"):
+                            # Updated key to include timestamp and 'tech' identifier
+                            if st.button("Remove Change", 
+                                       key=f"del_change_tech_{change_info['record']['id']}_{change_info['timestamp']}"):
                                 change_to_remove = next(
                                     (c for c in st.session_state.changes 
                                      if c['record_id'] == change_info['record']['id'] 
