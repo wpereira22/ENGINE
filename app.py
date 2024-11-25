@@ -14,22 +14,35 @@ st.set_page_config(page_title="Cost Savings Analysis", layout="wide")
 init_session_state()
 
 # Constants
-BUSINESS_TYPES = ["Business A", "Business B"]
 CATEGORIES = ["Resource", "Technology"]
 RESOURCE_LOCATIONS = ["Onshore", "Offshore"]
 TECH_LOCATIONS = ["On-premise", "Cloud"]
-FUNCTIONS = ["Development", "Testing", "Support"]
 
 # Helper functions
 def delete_record(record):
-    # Remove associated changes first
+    # Store the record ID before deletion
+    record_id = record['id']
+    
+    # Remove the record first
+    st.session_state.records = [r for r in st.session_state.records if r['id'] != record_id]
+    
+    # Remove associated changes while preserving other changes
     st.session_state.changes = [
         c for c in st.session_state.changes 
-        if c['record_id'] != record['id']
+        if c['record_id'] != record_id
     ]
-    # Remove the record
-    st.session_state.records.remove(record)
-    st.rerun()
+    
+    # Remove any implementation costs associated with this record
+    keys_to_remove = []
+    for key in st.session_state.implementation_costs:
+        if f"_{record_id}_" in key:
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del st.session_state.implementation_costs[key]
+    
+    # Set flag to trigger rerun
+    st.session_state.trigger_rerun = True
 
 def add_sample_data():
     """Add sample records and changes for demonstration"""
@@ -337,27 +350,36 @@ with col3:
     if st.button("Load Sample Data", help="Click to populate with sample data for demonstration"):
         add_sample_data()
 
+# Add this check at the top of the main content section (after initializing session state):
+if st.session_state.get('trigger_rerun', False):
+    st.session_state.trigger_rerun = False
+    st.rerun()
+
 # Create business level tabs
-business_tabs = st.tabs(BUSINESS_TYPES)
+business_tabs = st.tabs([st.session_state.business_names[business] 
+                        for business in ['Business A', 'Business B']])
 
 for i, business_tab in enumerate(business_tabs):
     with business_tab:
-        selected_business = BUSINESS_TYPES[i]
+        # Get the internal business name (Business A or Business B)
+        internal_business = ['Business A', 'Business B'][i]
+        # Get the display name
+        selected_business = st.session_state.business_names[internal_business]
         
         # Add key metrics in columns
         col1, col2, col3 = st.columns([1, 1, 2])
         
         # Calculate metrics for the selected business
         resource_count = sum(r['count'] for r in st.session_state.records 
-                            if r['business'] == selected_business 
+                            if r['business'] == internal_business 
                             and r['category'] == 'Resource')
         
         tech_count = sum(1 for r in st.session_state.records 
-                        if r['business'] == selected_business 
+                        if r['business'] == internal_business 
                         and r['category'] == 'Technology')
         
         total_cost = sum(r['total_cost'] for r in st.session_state.records 
-                        if r['business'] == selected_business)
+                        if r['business'] == internal_business)
         
         # Display metrics
         with col1:
@@ -390,16 +412,16 @@ for i, business_tab in enumerate(business_tabs):
                 with tab1:
                     total_cost = 0
                     for record in st.session_state.records:
-                        if record['business'] == selected_business and record['category'] == selected_category:
+                        if record['business'] == internal_business and record['category'] == selected_category:
                             total_cost += record['total_cost']
                             
                             # Different display for resources vs technology
                             if selected_category == "Resource":
-                                title = f"{', '.join(record['functions'])} Team - ${record['total_cost']:,}"
+                                title = f"### {', '.join(record['functions'])} Team - ${record['total_cost']:,}"
                             else:
-                                title = f"{record['tech_name']} - ${record['total_cost']:,}"
+                                title = f"### {record['tech_name']} - ${record['total_cost']:,}"
                                 
-                            with st.expander(title, expanded=True):
+                            with st.expander(title, expanded=False):
                                 col1, col2 = st.columns([2, 1])
                                 
                                 with col1:
@@ -407,73 +429,60 @@ for i, business_tab in enumerate(business_tabs):
                                     if selected_category == "Resource":
                                         # Resource layout
                                         st.markdown(f"""
-                                            ### Key Information
+                                            #### Key Information
                                             - **Location:** {record['location']}
                                             - **Team Size:** {record['count']} resources
                                             - **Cost per Resource:** ${record['unit_cost']:,}
                                             
-                                            ### Functions & Responsibilities
+                                            #### Comments
+                                            _{record['comments'] if record['comments'] else 'No comments provided'}_
                                         """)
-                                        # Display functions and their descriptions in a cleaner way
-                                        for func in record['functions']:
-                                            st.markdown(f"**{func}**")
-                                            desc = record['function_descriptions'].get(func, 'No description provided')
-                                            st.markdown(f"_{desc}_")
-                                        
-                                        if record['comments']:
-                                            st.markdown("### Comments")
-                                            st.markdown(record['comments'])
                                     else:
                                         # Technology layout
                                         st.markdown(f"""
-                                            ### Key Information
+                                            #### Key Information
                                             - **Annual Cost:** ${record['total_cost']:,}
                                             
-                                            ### Functions & Responsibilities
+                                            #### Comments
+                                            _{record['comments'] if record['comments'] else 'No comments provided'}_
                                         """)
-                                        # Display functions and their descriptions in a cleaner way
-                                        for func in record['functions']:
-                                            st.markdown(f"**{func}**")
-                                            desc = record['function_descriptions'].get(func, 'No description provided')
-                                            st.markdown(f"_{desc}_")
-                                        
-                                        if record['comments']:
-                                            st.markdown("### Comments")
-                                            st.markdown(record['comments'])
                                 
                                 with col2:
                                     if selected_category == "Resource":
                                         change_type = st.selectbox(
                                             "Plan Change",
                                             ["No Change", "Modify Count", "Change Location"],
-                                            key=f"change_type_{record['id']}"
+                                            key=f"change_type_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                         )
                                         
                                         implementation_year = st.selectbox(
                                             "Implementation Year",
                                             range(1, 6),
-                                            key=f"year_{record['id']}"
+                                            key=f"year_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                         )
                                         
                                         st.button("Delete Record", 
-                                                key=f"del_record_{record['id']}",
+                                                key=f"del_record_{record['id']}_{hash(tuple(sorted(record['functions'])))}",
                                                 type="secondary",
-                                                on_click=lambda: delete_record(record))
+                                                on_click=delete_record,
+                                                args=(record,))
                                         
                                         if change_type == "Modify Count":
                                             new_count = st.number_input(
                                                 "New Count",
                                                 min_value=0,
                                                 value=record['count'],
-                                                key=f"new_count_{record['id']}"
+                                                key=f"new_count_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                             )
-                                            # Add description field
                                             change_description = st.text_area(
                                                 "Change Description",
                                                 placeholder="e.g., Automation reduces headcount",
-                                                key=f"desc_count_{record['id']}"
+                                                key=f"desc_count_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                             )
-                                            if st.button("Apply Change", key=f"apply_count_{record['id']}"):
+                                            if st.button("Apply Change", key=f"apply_count_{record['id']}_{hash(tuple(sorted(record['functions'])))}"):
+                                                # Calculate new total cost based on unit cost
+                                                new_total_cost = (new_count * record['unit_cost']) if record['unit_cost'] is not None else 0
+                                                
                                                 change = {
                                                     'record_id': record['id'],
                                                     'type': 'count_change',
@@ -481,8 +490,16 @@ for i, business_tab in enumerate(business_tabs):
                                                     'to': new_count,
                                                     'implementation_year': implementation_year,
                                                     'description': change_description,
-                                                    'timestamp': datetime.now().isoformat()
+                                                    'timestamp': datetime.now().isoformat(),
+                                                    'new_total_cost': new_total_cost,
+                                                    'category': record['category'],  # Explicitly set category
+                                                    'functions': record['functions'].copy(),  # Make a copy of functions
+                                                    'original_location': record['location'],
+                                                    'original_unit_cost': record['unit_cost'],
+                                                    'business': record['business'],  # Add business for more specific matching
+                                                    'record_timestamp': record['timestamp']  # Add record timestamp for unique identification
                                                 }
+                                                
                                                 st.session_state.changes.append(change)
                                                 st.success("Change recorded!")
                                         
@@ -490,22 +507,30 @@ for i, business_tab in enumerate(business_tabs):
                                             new_location = st.selectbox(
                                                 "New Location",
                                                 RESOURCE_LOCATIONS if record['category'] == "Resource" else TECH_LOCATIONS,
-                                                key=f"new_location_{record['id']}"
+                                                key=f"new_location_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                             )
-                                            if st.button("Apply Change", key=f"apply_location_{record['id']}"):
-                                                new_unit_cost = st.session_state.assumptions[selected_business][new_location]  # Use assumption
+                                            # Add description field before the button
+                                            change_description = st.text_area(
+                                                "Change Description",
+                                                placeholder="e.g., Moving to cloud reduces headcount",
+                                                key=f"desc_location_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
+                                            )
+                                            
+                                            if st.button("Apply Change", key=f"apply_location_{record['id']}_{hash(tuple(sorted(record['functions'])))}"):
+                                                # Get new unit cost from assumptions
+                                                new_unit_cost = st.session_state.assumptions[internal_business][new_location]
+                                                # Calculate new total cost based on the ratio of unit costs
+                                                new_total_cost = (new_unit_cost / record['unit_cost']) * record['total_cost'] if record['unit_cost'] > 0 else record['total_cost']
+                                                
                                                 change = {
                                                     'record_id': record['id'],
                                                     'type': 'location_change',
                                                     'from': record['location'],
                                                     'to': new_location,
                                                     'implementation_year': implementation_year,
-                                                    'description': st.text_area(
-                                                        "Change Description",
-                                                        placeholder="e.g., Moving to cloud reduces headcount",
-                                                        key=f"desc_location_{record['id']}"
-                                                    ),
-                                                    'timestamp': datetime.now().isoformat()
+                                                    'description': change_description,
+                                                    'timestamp': datetime.now().isoformat(),
+                                                    'new_total_cost': new_total_cost
                                                 }
                                                 st.session_state.changes.append(change)
                                                 st.success("Change recorded!")
@@ -514,41 +539,44 @@ for i, business_tab in enumerate(business_tabs):
                                         change_type = st.selectbox(
                                             "Plan Change",
                                             ["No Change", "Modify Cost"],
-                                            key=f"change_type_{record['id']}"
+                                            key=f"change_type_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                         )
                                         
                                         implementation_year = st.selectbox(
                                             "Implementation Year",
                                             range(1, 6),
-                                            key=f"year_{record['id']}"
+                                            key=f"year_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                         )
                                         
                                         st.button("Delete Record", 
-                                                key=f"del_record_{record['id']}",
+                                                key=f"del_record_{record['id']}_{hash(tuple(sorted(record['functions'])))}",
                                                 type="secondary",
-                                                on_click=lambda: delete_record(record))
+                                                on_click=delete_record,
+                                                args=(record,))
                                         
                                         if change_type == "Modify Cost":
                                             new_cost = st.number_input(
                                                 "New Annual Cost",
                                                 min_value=0.0,
                                                 value=float(record['total_cost']),
-                                                key=f"new_cost_{record['id']}"
+                                                key=f"new_cost_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
                                             )
-                                            # Add description field here too
-                                            if st.button("Apply Change", key=f"apply_cost_{record['id']}"):
+                                            # Add description field
+                                            change_description = st.text_area(
+                                                "Change Description",
+                                                placeholder="e.g., Cloud migration reduces cost",
+                                                key=f"desc_cost_{record['id']}_{hash(tuple(sorted(record['functions'])))}"
+                                            )
+                                            if st.button("Apply Change", key=f"apply_cost_{record['id']}_{hash(tuple(sorted(record['functions'])))}"):
                                                 change = {
                                                     'record_id': record['id'],
                                                     'type': 'cost_change',
                                                     'from': record['total_cost'],
-                                                    'to': new_cost,
+                                                    'to': new_cost,  # Just use the new cost directly
                                                     'implementation_year': implementation_year,
-                                                    'description': st.text_area(
-                                                        "Change Description",
-                                                        placeholder="e.g., Cloud migration reduces headcount",
-                                                        key=f"desc_cost_{record['id']}"
-                                                    ),
-                                                    'timestamp': datetime.now().isoformat()
+                                                    'description': change_description,
+                                                    'timestamp': datetime.now().isoformat(),
+                                                    'new_total_cost': new_cost  # Add this to be consistent with other changes
                                                 }
                                                 st.session_state.changes.append(change)
                                                 st.success("Change recorded!")
@@ -566,8 +594,8 @@ for i, business_tab in enumerate(business_tabs):
                         function_descriptions = {}
                         
                         # Create columns for better layout
-                        cols = st.columns(len(FUNCTIONS))
-                        for i, function in enumerate(FUNCTIONS):
+                        cols = st.columns(len(st.session_state.FUNCTIONS))
+                        for i, function in enumerate(st.session_state.FUNCTIONS):
                             with cols[i]:
                                 selected_functions[function] = st.checkbox(
                                     function,
@@ -589,7 +617,7 @@ for i, business_tab in enumerate(business_tabs):
                             # Resource-specific fields
                             location = st.selectbox("Location", RESOURCE_LOCATIONS)
                             count = st.number_input("Count", min_value=1, value=1)
-                            unit_cost = st.session_state.assumptions[selected_business][location]
+                            unit_cost = st.session_state.assumptions[internal_business][location]
                             total_cost = unit_cost * count
                             
                             st.write(f"Unit Cost: ${unit_cost:,}")
@@ -612,18 +640,19 @@ for i, business_tab in enumerate(business_tabs):
                                     if selected
                                 ]
                                 
-                                # Filter descriptions to only selected functions
+                                # Filter descriptions to only include selected functions
                                 selected_descriptions = {
                                     f: function_descriptions.get(f, '')
                                     for f in selected_function_list
+                                    if f in function_descriptions
                                 }
                                 
                                 new_record = {
                                     'id': len(st.session_state.records),
-                                    'business': selected_business,
+                                    'business': internal_business,
                                     'category': selected_category,
                                     'functions': selected_function_list,
-                                    'function_descriptions': selected_descriptions,
+                                    'function_descriptions': selected_descriptions or {},  # Ensure it's never None
                                     'tech_name': tech_name if selected_category == "Technology" else None,
                                     'location': location,
                                     'count': count,
@@ -639,40 +668,70 @@ for i, business_tab in enumerate(business_tabs):
                 # Tab 3: Future State Changes
                 with tab3:
                     if st.session_state.changes:
-                        # Group changes by record
-                        changes_by_record = {}
-                        for change in st.session_state.changes:
-                            record = next(r for r in st.session_state.records if r['id'] == change['record_id'])
-                            if record['id'] not in changes_by_record:
-                                changes_by_record[record['id']] = {
-                                    'record': record,
-                                    'changes': []
-                                }
-                            changes_by_record[record['id']]['changes'].append(change)
+                        # First filter changes for current business and category
+                        relevant_changes = [
+                            change for change in st.session_state.changes
+                            if (
+                                # Match the record
+                                (record := next(
+                                    (r for r in st.session_state.records 
+                                     if r['id'] == change['record_id'] 
+                                     and r['category'] == change.get('category', r['category'])),
+                                    None
+                                ))
+                                # Check if it matches current business and category
+                                and record['business'] == internal_business  # Use internal_business instead of selected_business
+                                and record['category'] == selected_category
+                            )
+                        ]
                         
-                        # Display organized change log
-                        for record_id, data in changes_by_record.items():
-                            record = data['record']
-                            if record['business'] == selected_business and record['category'] == selected_category:
-                                if selected_category == "Resource":
+                        for change in relevant_changes:
+                            # Get the record using the same matching logic as above
+                            record = next(
+                                (r for r in st.session_state.records 
+                                 if r['id'] == change['record_id'] 
+                                 and r['category'] == change.get('category', r['category'])),
+                                None
+                            )
+                            
+                            if record:  # Only proceed if we found a matching record
+                                # Create message based on change type
+                                if change['type'] == 'count_change' and record['category'] == 'Resource':
+                                    message = (
+                                        f"Resource count will change from {change['from']} to {change['to']} "
+                                        f"in Year {change['implementation_year']}\n"
+                                        f"- Impact: {'Reduction' if change['to'] < change['from'] else 'Increase'} "
+                                        f"of {abs(change['from'] - change['to'])} resources\n"
+                                        f"- Description: {change.get('description', 'No description provided')}"
+                                    )
+                                elif change['type'] == 'location_change':
+                                    message = (
+                                        f"Location will change from {change['from']} to {change['to']} "
+                                        f"in Year {change['implementation_year']}\n"
+                                        f"- Description: {change.get('description', 'No description provided')}"
+                                    )
+                                elif change['type'] == 'cost_change':
+                                    message = (
+                                        f"Cost will change from ${change['from']:,} to ${change['to']:,} "
+                                        f"in Year {change['implementation_year']}\n"
+                                        f"- Description: {change.get('description', 'No description provided')}"
+                                    )
+                                
+                                # Display the change
+                                if record['category'] == "Resource":
                                     st.subheader(f"{', '.join(record['functions'])} Team ({record['location']})")
                                 else:
                                     st.subheader(f"{record['tech_name']} ({', '.join(record['functions'])})")
                                 
-                                for change in data['changes']:
-                                    col1, col2 = st.columns([4, 1])
-                                    with col1:
-                                        # Display change message
-                                        st.markdown(create_change_message(change, record))
-                                    with col2:
-                                        # Add delete button for each change
-                                        if st.button("Delete Change", 
-                                                   key=f"del_change_{record['id']}_{change['timestamp']}",
-                                                   type="secondary"):
-                                            st.session_state.changes.remove(change)
-                                            st.rerun()
-                                    
-                                    st.divider()
+                                st.markdown(message)
+                                
+                                # Add delete button for each change
+                                if st.button("Delete Change", 
+                                           key=f"del_change_{record['id']}_{change['timestamp']}"):
+                                    st.session_state.changes.remove(change)
+                                    st.rerun()
+                                
+                                st.divider()
                     else:
                         st.info("No changes recorded yet.")
 
@@ -685,7 +744,8 @@ for i, business_tab in enumerate(business_tabs):
                         total_future = 0
                         
                         for record in st.session_state.records:
-                            if record['business'] == selected_business and record['category'] == selected_category:
+                            # Use internal_business instead of selected_business for comparison
+                            if record['business'] == internal_business and record['category'] == selected_category:
                                 current_cost = record['total_cost']
                                 total_current += current_cost
                                 
@@ -696,10 +756,13 @@ for i, business_tab in enumerate(business_tabs):
                                     if change['record_id'] == record['id']:
                                         year = change['implementation_year']
                                         if change['type'] == 'count_change':
-                                            new_cost = (change['to'] * record['unit_cost'])
+                                            if record['category'] == 'Resource':
+                                                new_cost = (change['to'] * record['unit_cost']) if record['unit_cost'] is not None else 0
+                                            else:
+                                                new_cost = record['total_cost']  # For technology records, keep original cost
                                         elif change['type'] == 'location_change':
-                                            new_unit_cost = 100000 if change['to'] == 'Onshore' else 40000
-                                            new_cost = (record['count'] * new_unit_cost)
+                                            new_unit_cost = st.session_state.assumptions[internal_business][change['to']]
+                                            new_cost = (record['count'] * new_unit_cost) if record['count'] is not None else record['total_cost']
                                         elif change['type'] == 'cost_change':
                                             new_cost = change['to']
                                         
@@ -707,46 +770,26 @@ for i, business_tab in enumerate(business_tabs):
                                         for y in range(year, 6):
                                             future_costs_by_year[y] = new_cost
                                 
-                                # Use the final year's cost for the analysis
-                                future_cost = future_costs_by_year[5]
-                                total_future += future_cost
-                                savings = current_cost - future_cost
-                                
                                 # Different name construction for Resource vs Technology
                                 if record['category'] == 'Technology':
                                     name = f"{record['tech_name']} ({', '.join(record['functions'])})"
                                 else:
                                     name = f"{', '.join(record['functions'])} Team"
                                 
-                                # Calculate costs for each year
-                                yearly_costs = []
-                                for year in range(6):  # Years 0-5
-                                    cost = current_cost
-                                    for change in st.session_state.changes:
-                                        if change['record_id'] == record['id'] and change['implementation_year'] <= year:
-                                            if change['type'] == 'count_change':
-                                                cost = (change['to'] * record['unit_cost'])
-                                            elif change['type'] == 'location_change':
-                                                new_unit_cost = 100000 if change['to'] == 'Onshore' else 40000
-                                                cost = (record['count'] * new_unit_cost)
-                                            elif change['type'] == 'cost_change':
-                                                cost = change['to']
-                                    yearly_costs.append(cost)
-
                                 analysis_data.append({
-                                    'Business': record['business'],
+                                    'Business': st.session_state.business_names[record['business']],  # Use display name for display
                                     'Category': record['category'],
                                     'Name': name,
                                     'Current Cost': current_cost,
-                                    'Year 1': yearly_costs[1],
-                                    'Year 2': yearly_costs[2],
-                                    'Year 3': yearly_costs[3],
-                                    'Year 4': yearly_costs[4],
-                                    'Year 5': yearly_costs[5],
-                                    'Total 5Y Savings': sum(current_cost - cost for cost in yearly_costs[1:]),
-                                    'Row Total': sum(yearly_costs[1:])
+                                    'Year 1': future_costs_by_year[1],
+                                    'Year 2': future_costs_by_year[2],
+                                    'Year 3': future_costs_by_year[3],
+                                    'Year 4': future_costs_by_year[4],
+                                    'Year 5': future_costs_by_year[5],
+                                    'Total 5Y Savings': sum(current_cost - cost for cost in future_costs_by_year[1:]),
+                                    'Row Total': sum(future_costs_by_year[1:])
                                 })
-                        
+
                         # Only create and format DataFrame if we have data
                         if analysis_data:
                             # Create DataFrame and sort by Business and Category
@@ -872,6 +915,6 @@ for i, business_tab in enumerate(business_tabs):
                             
                             st.dataframe(styled_totals_df, use_container_width=True)
                         else:
-                            st.info(f"No records found for {selected_business} - {selected_category}")
+                            st.info(f"No records found for {st.session_state.business_names[internal_business]} - {selected_category}")
                     else:
                         st.info("No records available. Please add some records first.") 
