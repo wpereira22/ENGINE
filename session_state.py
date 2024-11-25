@@ -9,45 +9,34 @@ IMPLEMENTATION_TYPES = {
 }
 
 def init_session_state():
-    """Initialize all session state variables"""
-    
-    # Initialize implementation costs if not present
-    if 'implementation_costs' not in st.session_state:
-        st.session_state.implementation_costs = {}
-
-    # Add a key to track edited values
-    if 'edited_values' not in st.session_state:
-        st.session_state.edited_values = {}
-
-    # Initialize records if not present
+    """Initialize session state with default values"""
     if 'records' not in st.session_state:
         st.session_state.records = []
-
-    # Initialize changes if not present
+    
     if 'changes' not in st.session_state:
         st.session_state.changes = []
-
-    # Initialize assumptions if not present
+    
+    if 'implementation_costs' not in st.session_state:
+        st.session_state.implementation_costs = {}
+    
     if 'assumptions' not in st.session_state:
         st.session_state.assumptions = {
             'Business A': {
-                'Onshore': 100000,
-                'Offshore': 40000,
+                'Onshore': 100000.0,
+                'Offshore': 40000.0,
                 'Implementation': {
-                    'Rebadge': 5000,
-                    'House Resources': 10000,
-                    'New Hire': 15000,
-                    'Internal Build Costs': 0
+                    'Rebadge': 15000.0,
+                    'House Resources': 20000.0,
+                    'New Hire': 25000.0
                 }
             },
             'Business B': {
-                'Onshore': 100000,
-                'Offshore': 40000,
+                'Onshore': 90000.0,
+                'Offshore': 35000.0,
                 'Implementation': {
-                    'Rebadge': 5000,
-                    'House Resources': 10000,
-                    'New Hire': 15000,
-                    'Internal Build Costs': 0
+                    'Rebadge': 12000.0,
+                    'House Resources': 18000.0,
+                    'New Hire': 22000.0
                 }
             }
         }

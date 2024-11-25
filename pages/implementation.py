@@ -69,35 +69,57 @@ def handle_edited_table(edited_df, business, category):
     table_key = f"{business}_{category}_table"
     st.session_state[table_key] = edited_df
     
+    # Clear existing implementation costs for this business and category
+    keys_to_remove = []
+    for key in st.session_state.implementation_costs:
+        if key.startswith(f"{business}_") and any(impl_type in key for impl_type in IMPLEMENTATION_TYPES[category]):
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        del st.session_state.implementation_costs[key]
+    
+    # Add new implementation costs
     for idx, row in edited_df.iterrows():
+        # Skip empty or invalid rows
+        if pd.isna(row.get('Implementation Type')):
+            continue
+            
         description = str(row.get('Description', ''))
         impl_type = row['Implementation Type']
         
         # Get values with defaults
-        try:
-            yearly_values = [float(row.get(f'Year {i+1}', 0)) for i in range(5)]
-        except (ValueError, TypeError):
-            yearly_values = [0] * 5
+        yearly_values = []
+        for i in range(5):
+            try:
+                value = float(row.get(f'Year {i+1}', 0))
+                yearly_values.append(value if not pd.isna(value) else 0)
+            except (ValueError, TypeError):
+                yearly_values.append(0)
         
+        # Handle salary
         try:
-            salary = float(row.get('Salary', 0)) if category == "Resource" else 0
+            salary = float(row.get('Salary', 0)) if category == "Resource" else None
+            if pd.isna(salary):
+                salary = None
         except (ValueError, TypeError):
-            salary = 0
+            salary = None
         
         # Create unique key for this entry
         change_key = f"{business}_{impl_type}_{idx}"
         
-        # Update implementation costs
-        if change_key not in st.session_state.implementation_costs:
-            st.session_state.implementation_costs[change_key] = {'resources': {}}
-        
-        st.session_state.implementation_costs[change_key]['resources'][impl_type] = {
-            'values': yearly_values,
-            'salary': salary if category == "Resource" else None
-        }
-        
-        # Force update of last_modified to trigger recalculation
-        st.session_state.last_modified = datetime.now()
+        # Only add non-zero entries or entries with descriptions
+        if any(v != 0 for v in yearly_values) or description.strip():
+            if change_key not in st.session_state.implementation_costs:
+                st.session_state.implementation_costs[change_key] = {'resources': {}}
+            
+            st.session_state.implementation_costs[change_key]['resources'][impl_type] = {
+                'values': yearly_values,
+                'salary': salary,
+                'description': description
+            }
+    
+    # Force update of last_modified to trigger recalculation
+    st.session_state.last_modified = datetime.now()
 
 def calculate_total_costs(business_internal):
     """Calculate total implementation costs for a business"""
@@ -109,11 +131,13 @@ def calculate_total_costs(business_internal):
             for impl_type, impl_data in data['resources'].items():
                 if isinstance(impl_data, dict):
                     values = impl_data.get('values', [0] * 5)
-                    salary = impl_data.get('salary', 0)
+                    salary = impl_data.get('salary')
                     
                     # For resources, multiply count by salary or assumption cost
                     if impl_type in IMPLEMENTATION_TYPES["Resource"]:
-                        cost_per_resource = salary if salary > 0 else st.session_state.assumptions[business_internal]['Implementation'][impl_type]
+                        # Fix salary comparison
+                        cost_per_resource = salary if salary is not None and float(salary) > 0 else \
+                            st.session_state.assumptions[business_internal]['Implementation'][impl_type]
                         for year in range(5):
                             total_by_type[impl_type][year] += float(values[year]) * float(cost_per_resource)
                     

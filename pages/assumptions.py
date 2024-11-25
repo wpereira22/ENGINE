@@ -46,18 +46,18 @@ with tab1:
         with col1:
             business_a_onshore = st.number_input(
                 "Onshore Resource Cost (Annual)",
-                min_value=0,
-                value=st.session_state.assumptions['Business A']['Onshore'],
-                step=1000,
+                min_value=0.0,
+                value=float(st.session_state.assumptions['Business A']['Onshore']),
+                step=1000.0,
                 help="Annual cost per onshore resource for Business A"
             )
         
         with col2:
             business_a_offshore = st.number_input(
                 "Offshore Resource Cost (Annual)",
-                min_value=0,
-                value=st.session_state.assumptions['Business A']['Offshore'],
-                step=1000,
+                min_value=0.0,
+                value=float(st.session_state.assumptions['Business A']['Offshore']),
+                step=1000.0,
                 help="Annual cost per offshore resource for Business A"
             )
         
@@ -70,18 +70,18 @@ with tab1:
         with col1:
             business_b_onshore = st.number_input(
                 "Onshore Resource Cost (Annual)",
-                min_value=0,
-                value=st.session_state.assumptions['Business B']['Onshore'],
-                step=1000,
+                min_value=0.0,
+                value=float(st.session_state.assumptions['Business B']['Onshore']),
+                step=1000.0,
                 help="Annual cost per onshore resource for Business B"
             )
         
         with col2:
             business_b_offshore = st.number_input(
                 "Offshore Resource Cost (Annual)",
-                min_value=0,
-                value=st.session_state.assumptions['Business B']['Offshore'],
-                step=1000,
+                min_value=0.0,
+                value=float(st.session_state.assumptions['Business B']['Offshore']),
+                step=1000.0,
                 help="Annual cost per offshore resource for Business B"
             )
         

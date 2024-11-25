@@ -5,7 +5,7 @@ import json
 from openpyxl import Workbook
 import io
 from utils import create_change_message
-from session_state import init_session_state
+from session_state import init_session_state, IMPLEMENTATION_TYPES
 
 # Page config
 st.set_page_config(page_title="Cost Savings Analysis", layout="wide")
@@ -306,10 +306,35 @@ with col1:
     if st.button("Save Analysis"):
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            # Save records
             records_df = pd.DataFrame(st.session_state.records)
+            if not records_df.empty:
+                records_df['functions'] = records_df['functions'].apply(lambda x: json.dumps(x))
+                records_df['function_descriptions'] = records_df['function_descriptions'].apply(lambda x: json.dumps(x))
             records_df.to_excel(writer, sheet_name='Records', index=False)
+            
+            # Save changes
             changes_df = pd.DataFrame(st.session_state.changes)
             changes_df.to_excel(writer, sheet_name='Changes', index=False)
+            
+            # Save implementation costs
+            impl_costs_data = []
+            for key, data in st.session_state.implementation_costs.items():
+                if isinstance(data, dict) and 'resources' in data:
+                    for impl_type, impl_data in data['resources'].items():
+                        if isinstance(impl_data, dict):
+                            row = {
+                                'key': key,
+                                'implementation_type': impl_type,
+                                'values': json.dumps(impl_data.get('values', [])),
+                                'salary': impl_data.get('salary'),
+                                'description': impl_data.get('description', '')
+                            }
+                            impl_costs_data.append(row)
+            
+            if impl_costs_data:
+                impl_costs_df = pd.DataFrame(impl_costs_data)
+                impl_costs_df.to_excel(writer, sheet_name='Implementation', index=False)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"cost_analysis_{timestamp}.xlsx"
@@ -325,16 +350,89 @@ with col2:
     uploaded_file = st.file_uploader("Load Analysis", type=['xlsx'])
     if uploaded_file is not None:
         try:
+            # Load records and changes as before
             records_df = pd.read_excel(uploaded_file, sheet_name='Records')
             changes_df = pd.read_excel(uploaded_file, sheet_name='Changes')
+            
+            # Load implementation costs
+            try:
+                impl_costs_df = pd.read_excel(uploaded_file, sheet_name='Implementation')
+                
+                # Reset implementation costs
+                st.session_state.implementation_costs = {}
+                
+                # Rebuild implementation costs structure
+                for _, row in impl_costs_df.iterrows():
+                    key = row['key']
+                    impl_type = row['implementation_type']
+                    
+                    try:
+                        values = json.loads(row['values']) if isinstance(row['values'], str) else []
+                        values = [float(v) if not pd.isna(v) else 0.0 for v in values]
+                    except:
+                        values = [0.0] * 5
+                    
+                    try:
+                        salary = float(row['salary']) if not pd.isna(row['salary']) else None
+                    except:
+                        salary = None
+                    
+                    description = row.get('description', '') if not pd.isna(row.get('description')) else ''
+                    
+                    if key not in st.session_state.implementation_costs:
+                        st.session_state.implementation_costs[key] = {'resources': {}}
+                    
+                    st.session_state.implementation_costs[key]['resources'][impl_type] = {
+                        'values': values,
+                        'salary': salary,
+                        'description': description
+                    }
+                    
+                    # Update the corresponding table in session state
+                    business = key.split('_')[0]
+                    category = "Resource" if impl_type in IMPLEMENTATION_TYPES["Resource"] else "Technology"
+                    table_key = f"{business}_{category}_table"
+                    
+                    if table_key not in st.session_state:
+                        st.session_state[table_key] = pd.DataFrame()
+                    
+                    # Update the table with the loaded values
+                    table_data = {
+                        'Description': description,
+                        'Implementation Type': impl_type,
+                        **{f'Year {i+1}': values[i] for i in range(5)}
+                    }
+                    if category == "Resource":
+                        table_data['Salary'] = salary
+                    
+                    st.session_state[table_key] = pd.concat([
+                        st.session_state[table_key],
+                        pd.DataFrame([table_data])
+                    ]).reset_index(drop=True)
+                    
+            except Exception as e:
+                st.sidebar.warning(f"No implementation data found or error loading it: {str(e)}")
+            
+            # Continue with existing loading logic for records and changes...
+            if not records_df.empty:
+                records_df['functions'] = records_df['functions'].apply(lambda x: json.loads(x) if isinstance(x, str) else [])
+                records_df['function_descriptions'] = records_df['function_descriptions'].apply(
+                    lambda x: json.loads(x) if isinstance(x, str) else {}
+                )
             
             st.session_state.records = records_df.to_dict('records')
             st.session_state.changes = changes_df.to_dict('records')
             
+            # Clean up NaN values
             for record in st.session_state.records:
                 for key, value in record.items():
                     if pd.isna(value):
-                        record[key] = None
+                        if key in ['functions']:
+                            record[key] = []
+                        elif key in ['function_descriptions']:
+                            record[key] = {}
+                        else:
+                            record[key] = None
             
             for change in st.session_state.changes:
                 for key, value in change.items():
@@ -345,6 +443,7 @@ with col2:
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"Error loading file: {str(e)}")
+            st.sidebar.error("Please ensure the file format is correct.")
 
 with col3:
     if st.button("Load Sample Data", help="Click to populate with sample data for demonstration"):
